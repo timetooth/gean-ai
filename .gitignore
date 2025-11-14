@@ -1,1 +1,53 @@
 
+.ipynb_checkpoints/
+venv/
+CycleGAN_Simple/SE/models/
+CycleGAN_Simple/SE/.ipynb_checkpoints/
+# === build / outputs ===
+output/
+results/
+results_both/
+runs/
+checkpoints/
+*.log
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# === Models ===
+*.pth
+*.pt
+*.onnx
+
+# === OS/editor junk ===
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+# === build / outputs ===
+output/
+results/
+results_both/
+runs/
+checkpoints/
+*.log
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# === Models ===
+*.pth
+*.pt
+*.onnx
+
+# === OS/editor junk ===
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
