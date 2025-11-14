@@ -18,6 +18,11 @@ from utils import Logger
 from utils import weights_init_normal
 from utils import loss_plot
 from datasets import ImageDataset
+from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parent
+SAVE_DIR = BASE_DIR / "output"
+SAVE_DIR.mkdir(parents=True, exist_ok=True)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -197,8 +202,9 @@ if __name__ == "__main__":
 
         # Save models checkpoints
         # 没保存结构
-        torch.save(netG_A2B.state_dict(), 'output/netG_A2B.pth')
-        torch.save(netG_B2A.state_dict(), 'output/netG_B2A.pth')
-        torch.save(netD_A.state_dict(), 'output/netD_A.pth')
-        torch.save(netD_B.state_dict(), 'output/netD_B.pth')
+        torch.save(netG_A2B.state_dict(), SAVE_DIR / 'netG_A2B.pth')
+        torch.save(netG_B2A.state_dict(), SAVE_DIR / 'netG_B2A.pth')
+        torch.save(netD_A.state_dict(),   SAVE_DIR / 'netD_A.pth')
+        torch.save(netD_B.state_dict(),   SAVE_DIR / 'netD_B.pth')
+
     ###################################
