@@ -1,85 +1,92 @@
-#!/usr/bin/python3
-
+#!/usr/bin/env python3
 import argparse
-import sys
-import os
-
-import torchvision.transforms as transforms
-from torchvision.utils import save_image
-from torch.utils.data import DataLoader
-from torch.autograd import Variable
+from pathlib import Path
 import torch
+from torch.utils.data import DataLoader
+from torchvision.utils import save_image
+import torchvision.transforms as T
+from PIL import Image
 
 from models import Generator
 from datasets import ImageDataset
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--batchSize', type=int, default=1, help='size of the batches')
-parser.add_argument('--dataroot', type=str, default='datasets/horse2zebra/', help='root directory of the dataset')
-parser.add_argument('--input_nc', type=int, default=3, help='number of channels of input data')
-parser.add_argument('--output_nc', type=int, default=3, help='number of channels of output data')
-parser.add_argument('--size', type=int, default=256, help='size of the data (squared assumed)')
-parser.add_argument('--cuda', action='store_true', help='use GPU computation')
-parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
-parser.add_argument('--generator_A2B', type=str, default='output/netG_A2B.pth', help='A2B generator checkpoint file')
-parser.add_argument('--generator_B2A', type=str, default='output/netG_B2A.pth', help='B2A generator checkpoint file')
-opt = parser.parse_args()
-print(opt)
+def parse_args():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--batchSize', type=int, default=1)
+    ap.add_argument('--dataroot', type=str, default='datasets/horse2zebra/')
+    ap.add_argument('--input_nc', type=int, default=3)
+    ap.add_argument('--output_nc', type=int, default=3)
+    ap.add_argument('--size', type=int, default=256)
+    ap.add_argument('--cuda', action='store_true')
+    ap.add_argument('--n_cpu', type=int, default=8)
+    ap.add_argument('--which_direction', '-d', choices=['A2B','B2A','both'], default='A2B')
+    ap.add_argument('--results_dir', '-o', type=str, default='results')
+    ap.add_argument('--generator_A2B', '--checkpoint_A2B', '--ckpt_A2B',
+                    dest='generator_A2B', type=str, default='output/netG_A2B.pth')
+    ap.add_argument('--generator_B2A', '--checkpoint_B2A', '--ckpt_B2A',
+                    dest='generator_B2A', type=str, default='output/netG_B2A.pth')
+    ap.add_argument('--limit', type=int, default=0)
+    return ap.parse_args()
 
-if torch.cuda.is_available() and not opt.cuda:
-    print("WARNING: You have a CUDA device, so you should probably run with --cuda")
+def build_loader(opt):
+    # IMPORTANT: pass a LIST, not a Compose, because ImageDataset will Compose() internally
+    tfm_list = [
+        T.Resize((opt.size, opt.size), interpolation=Image.BICUBIC),
+        T.ToTensor(),
+        T.Normalize((0.5,0.5,0.5),(0.5,0.5,0.5)),
+    ]
+    ds = ImageDataset(opt.dataroot, transforms_=tfm_list, mode='test')
+    return DataLoader(ds, batch_size=opt.batchSize, shuffle=False,
+                      num_workers=opt.n_cpu, pin_memory=bool(opt.cuda))
 
-###### Definition of variables ######
-# Networks
-netG_A2B = Generator(opt.input_nc, opt.output_nc)
-netG_B2A = Generator(opt.output_nc, opt.input_nc)
+def load_gen(chkpt, in_nc, out_nc, device):
+    G = Generator(in_nc, out_nc).to(device)
+    # Try safe loading (newer PyTorch), fall back if not supported
+    try:
+        sd = torch.load(chkpt, map_location=device, weights_only=True)  # PyTorch ≥2.5
+    except TypeError:
+        sd = torch.load(chkpt, map_location=device)
+    G.load_state_dict(sd, strict=False)
+    G.eval()
+    return G
 
-if opt.cuda:
-    netG_A2B.cuda()
-    netG_B2A.cuda()
+def main():
+    opt = parse_args()
+    device = torch.device('cuda:0' if (opt.cuda and torch.cuda.is_available()) else 'cpu')
 
-# Load state dicts
-netG_A2B.load_state_dict(torch.load(opt.generator_A2B))
-netG_B2A.load_state_dict(torch.load(opt.generator_B2A))
+    do_A2B = opt.which_direction in ('A2B','both')
+    do_B2A = opt.which_direction in ('B2A','both')
 
-# Set model's test mode
-netG_A2B.eval()
-netG_B2A.eval()
+    G_A2B = load_gen(opt.generator_A2B, opt.input_nc, opt.output_nc, device) if do_A2B else None
+    G_B2A = load_gen(opt.generator_B2A, opt.output_nc, opt.input_nc, device) if do_B2A else None
 
-# Inputs & targets memory allocation
-Tensor = torch.cuda.FloatTensor if opt.cuda else torch.Tensor
-input_A = Tensor(opt.batchSize, opt.input_nc, opt.size, opt.size)
-input_B = Tensor(opt.batchSize, opt.output_nc, opt.size, opt.size)
+    out_root = Path(opt.results_dir)
+    out_A2B = out_root / 'A2B'
+    out_B2A = out_root / 'B2A'
+    if do_A2B: out_A2B.mkdir(parents=True, exist_ok=True)
+    if do_B2A: out_B2A.mkdir(parents=True, exist_ok=True)
 
-# Dataset loader
-transforms_ = [ transforms.ToTensor(),
-                transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5)) ]
-dataloader = DataLoader(ImageDataset(opt.dataroot, transforms_=transforms_, mode='test'), 
-                        batch_size=opt.batchSize, shuffle=False, num_workers=opt.n_cpu)
-###################################
+    loader = build_loader(opt)
 
-###### Testing######
+    total = len(loader)
+    with torch.inference_mode():
+        for i, batch in enumerate(loader, 1):
+            if do_A2B:
+                real_A = batch['A'].to(device, non_blocking=True)
+                fake_B = (G_A2B(real_A)*0.5 + 0.5).clamp(0,1).cpu()
+                for k in range(fake_B.size(0)):
+                    save_image(fake_B[k], out_A2B / f"{i:04d}_{k:02d}.png")
 
-# Create output dirs if they don't exist
-if not os.path.exists('output/A'):
-    os.makedirs('output/A')
-if not os.path.exists('output/B'):
-    os.makedirs('output/B')
+            if do_B2A:
+                real_B = batch['B'].to(device, non_blocking=True)
+                fake_A = (G_B2A(real_B)*0.5 + 0.5).clamp(0,1).cpu()
+                for k in range(fake_A.size(0)):
+                    save_image(fake_A[k], out_B2A / f"{i:04d}_{k:02d}.png")
 
-for i, batch in enumerate(dataloader):
-    # Set model input
-    real_A = Variable(input_A.copy_(batch['A']))
-    real_B = Variable(input_B.copy_(batch['B']))
+            print(f"\rGenerated {i}/{total} batches", end='', flush=True)
+            if opt.limit and i >= opt.limit:
+                break
+    print()  # newline
 
-    # Generate output
-    fake_B = 0.5*(netG_A2B(real_A).data + 1.0)
-    fake_A = 0.5*(netG_B2A(real_B).data + 1.0)
-
-    # Save image files
-    save_image(fake_A, 'output/A/%04d.png' % (i+1))
-    save_image(fake_B, 'output/B/%04d.png' % (i+1))
-
-    sys.stdout.write('\rGenerated images %04d of %04d' % (i+1, len(dataloader)))
-
-sys.stdout.write('\n')
-###################################
+if __name__ == "__main__":
+    main()
