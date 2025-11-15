@@ -19,15 +19,15 @@ BASE_DIR = Path(__file__).resolve().parent
 TRAIN_PY = BASE_DIR / "train.py"
 TEST_PY  = BASE_DIR / "test.py"
 DATASETS_DIR = BASE_DIR / "datasets"
-OUTPUT_DIR   = BASE_DIR / "output"        # train.py writes here
-MODELS_DIR   = BASE_DIR / "models"        # we’ll archive trained checkpoints here
-RESULTS_DIR  = BASE_DIR / "results"       # default folder for test.py runs
+OUTPUT_DIR   = BASE_DIR / "output" 
+MODELS_DIR   = BASE_DIR / "models" 
+RESULTS_DIR  = BASE_DIR / "results"
 
 for d in (DATASETS_DIR, OUTPUT_DIR, MODELS_DIR, RESULTS_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
 def python_bin() -> str:
-    return sys.executable  # whichever Python is running Streamlit
+    return sys.executable  
 
 @contextmanager
 def status_box(title: str):
@@ -37,7 +37,7 @@ def status_box(title: str):
             yield s
     except Exception:
         with st.spinner(title):
-            class Dummy:  # no-op update
+            class Dummy: 
                 def update(self, *_, **__): pass
             yield Dummy()
 

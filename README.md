@@ -30,7 +30,7 @@ Our improvements focus on the generator module, which works by embedding the att
 
   
 # Results
-<img src="https://github.com/timetooth/gean-ai/blob/main/pic/denoise_result.png" width=70% height=70%>
+<img src="https://github.com/timetooth/gean-ai/blob/main/pic/denoise_result.png" width=90% height=90%>
 
 ## Attention Map Visualization
 <img src="https://github.com/timetooth/gean-ai/blob/main/pic/attention_map.png" width=50% height=50%>
@@ -41,7 +41,7 @@ Our improvements focus on the generator module, which works by embedding the att
 | CycleGAN | 1.34    | 8.95   | 66.47 | 
 | CycleGAN+CBAM | 3.16    | 11.52   | 67.18 |
 | CycleGAN+SE | **1.06**    | **4.85**   | **59.79** |
-<img src="https://github.com/timetooth/gean-ai/blob/main/pic/loss.jpeg" width=120% height=120%>
+<img src="https://github.com/timetooth/gean-ai/blob/main/pic/loss.jpeg" width=100% height=100%>
 
 # Configurations
 torch 1.9.1

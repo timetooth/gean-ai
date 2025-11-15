@@ -29,7 +29,6 @@ def parse_args():
     return ap.parse_args()
 
 def build_loader(opt):
-    # IMPORTANT: pass a LIST, not a Compose, because ImageDataset will Compose() internally
     tfm_list = [
         T.Resize((opt.size, opt.size), interpolation=Image.BICUBIC),
         T.ToTensor(),
@@ -41,7 +40,6 @@ def build_loader(opt):
 
 def load_gen(chkpt, in_nc, out_nc, device):
     G = Generator(in_nc, out_nc).to(device)
-    # Try safe loading (newer PyTorch), fall back if not supported
     try:
         sd = torch.load(chkpt, map_location=device, weights_only=True)  # PyTorch ≥2.5
     except TypeError:
@@ -86,7 +84,7 @@ def main():
             print(f"\rGenerated {i}/{total} batches", end='', flush=True)
             if opt.limit and i >= opt.limit:
                 break
-    print()  # newline
+    print() 
 
 if __name__ == "__main__":
     main()

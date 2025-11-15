@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-# 想办法加进ResidualBlock里
+# ResidualBlock
 class SELayer(nn.Module):
     def __init__(self, channel, reduction=16):
         super(SELayer, self).__init__()
@@ -32,7 +32,7 @@ class ResidualBlock(nn.Module):
                         nn.InstanceNorm2d(in_features)  ]
 
         self.conv_block = nn.Sequential(*conv_block)
-# 加入SEblock
+# SEblock
         self.se_block = SELayer(in_features)
 
     def forward(self, x):
@@ -85,7 +85,6 @@ class Discriminator(nn.Module):
     def __init__(self, input_nc):
         super(Discriminator, self).__init__()
 
-        # A bunch of convolutions one after another
         model = [   nn.Conv2d(input_nc, 64, 4, stride=2, padding=1),
                     nn.LeakyReLU(0.2, inplace=True) ]
 
@@ -101,12 +100,10 @@ class Discriminator(nn.Module):
                     nn.InstanceNorm2d(512), 
                     nn.LeakyReLU(0.2, inplace=True) ]
 
-        # FCN classification layer
         model += [nn.Conv2d(512, 1, 4, padding=1)]
 
         self.model = nn.Sequential(*model)
 
     def forward(self, x):
         x =  self.model(x)
-        # Average pooling and flatten
         return F.avg_pool2d(x, x.size()[2:]).view(x.size()[0], -1)
