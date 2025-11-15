@@ -1,10 +1,11 @@
-# app.py
-# Streamlit UI for training + inference on CycleGAN_Simple/SE
+# Streamlit UI for training + inference
 import io
 import os
 import sys
 import json
 import time
+import glob
+import random
 import shutil
 import zipfile
 import subprocess
@@ -25,7 +26,6 @@ RESULTS_DIR  = BASE_DIR / "results"       # default folder for test.py runs
 for d in (DATASETS_DIR, OUTPUT_DIR, MODELS_DIR, RESULTS_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
-# ---------- small helpers ----------
 def python_bin() -> str:
     return sys.executable  # whichever Python is running Streamlit
 
@@ -53,7 +53,6 @@ def stream_process(cmd, cwd=BASE_DIR):
     )
     for line in iter(proc.stdout.readline, ""):
         log_lines.append(line.rstrip("\n"))
-        # Keep the box reasonably sized
         tail = log_lines[-400:]
         placeholder.code("\n".join(tail))
     proc.wait()
@@ -116,13 +115,73 @@ def save_uploaded_zip(file, name_hint: str):
         zf.extractall(dest)
     return dest
 
-# ---------- UI ----------
+def list_images(dir_path):
+    """Sorted list of images in a directory (non-recursive)."""
+    exts = (".png",".jpg",".jpeg",".bmp",".tif",".tiff")
+    p = Path(dir_path)
+    return sorted([x for x in p.iterdir() if x.suffix.lower() in exts])
+
+def find_split_dirs(dataroot: Path, split: str = "test"):
+    """
+    Return (A_dir, B_dir) for either layout:
+      - <root>/testA , <root>/testB
+      - <root>/test/A, <root>/test/B
+    Raises with a helpful message if neither exists.
+    """
+    dataroot = Path(dataroot)
+    candidates = [
+        (dataroot / f"{split}A", dataroot / f"{split}B"),
+        (dataroot / split / "A", dataroot / split / "B"),
+    ]
+    for A_dir, B_dir in candidates:
+        if A_dir.exists() and B_dir.exists():
+            return A_dir, B_dir
+    raise FileNotFoundError(
+        f"Could not find '{split}A'/'{split}B' or '{split}/A'/'{split}/B' under {dataroot}."
+    )
+
+
+def sample_pairs_for_preview(dataroot: str, results_dir: str, direction: str, k: int = 5):
+    """
+    Build k random (input, output) pairs for preview.
+    We match by enumeration order:
+      - A2B outputs under <results_dir>/A2B
+      - B2A outputs under <results_dir>/B2A
+    """
+    dataroot = Path(dataroot)
+    results_dir = Path(results_dir)
+
+    pairs = []
+
+    # Resolve test split dirs for both layouts
+    try:
+        testA_dir, testB_dir = find_split_dirs(dataroot, split="test")
+    except FileNotFoundError as e:
+        st.warning(str(e))
+        return pairs
+
+    if direction in ("A2B", "both"):
+        srcA = list_images(testA_dir)
+        outA2B = list_images(results_dir / "A2B")
+        n = min(len(srcA), len(outA2B))
+        idxs = random.sample(range(n), k=min(k, n)) if n else []
+        pairs.append((label_dir("A2B"), [(srcA[i], outA2B[i]) for i in sorted(idxs)]))
+
+    if direction in ("B2A", "both"):
+        srcB = list_images(testB_dir)
+        outB2A = list_images(results_dir / "B2A")
+        n = min(len(srcB), len(outB2A))
+        idxs = random.sample(range(n), k=min(k, n)) if n else []
+        pairs.append((label_dir("B2A"), [(srcB[i], outB2A[i]) for i in sorted(idxs)]))
+
+    return pairs
+
 st.set_page_config(page_title="CycleGAN Trainer/Inferencer", layout="wide")
 st.title("CycleGAN — Train & Inference")
 
 tabs = st.tabs(["🔎 Inference", "🛠️ Train new model", "ℹ️ Help"])
 
-# ====================== Inference Tab ======================
+# Inference
 with tabs[0]:
     st.subheader("Pick a model")
     models = list_model_dirs()
@@ -142,12 +201,27 @@ with tabs[0]:
 
     st.divider()
     st.subheader("Mode")
+    
+    sem_choice = st.selectbox(
+        "How to interpret domains?",
+        ["A = clean, B = noisy", "A = noisy, B = clean"],
+        index=0  # <-- pick 0 for your dataset
+    )
+    SEM = {"A": "clean", "B": "noisy"} if sem_choice.startswith("A = clean") else {"A": "noisy", "B": "clean"}
+    
+    def label_dir(direction: str):
+        return f"{direction} ({SEM['A']}→{SEM['B']})" if direction=="A2B" else f"{direction} ({SEM['B']}→{SEM['A']})"
 
     mode = st.radio("Choose inference mode", ["Single image (A→B or B→A)", "Whole test set using test.py"], index=0)
 
     if mode == "Single image (A→B or B→A)":
         st.write("Upload one image and choose direction. The app will load the matching generator and display the result.")
-        direction = st.selectbox("Direction", ["A2B (e.g., noisy→clean)", "B2A (e.g., clean→noisy)"])
+
+        direction = st.selectbox(
+            "Direction",
+            [label_dir("A2B"), label_dir("B2A")]
+        )
+
         size = st.number_input("Resize to (px)", min_value=64, max_value=1024, value=256, step=64)
         up = st.file_uploader("Image", type=["png","jpg","jpeg","bmp","tiff"])
         run_btn = st.button("Run inference")
@@ -158,14 +232,11 @@ with tabs[0]:
             elif not up:
                 st.error("Please upload an image.")
             else:
-                # Lazy-import torch/torchvision to let the app load fast
                 import torch
                 import torchvision.transforms as T
 
-                # Figure out which checkpoint to use
                 ckpt = (chosen_dir / "netG_A2B.pth") if direction.startswith("A2B") else (chosen_dir / "netG_B2A.pth")
 
-                # Import Generator as in repo
                 sys.path.insert(0, str(BASE_DIR))
                 from models import Generator  # signature (input_nc, output_nc)
 
@@ -193,9 +264,11 @@ with tabs[0]:
                     with torch.inference_mode():
                         y = G(x).cpu().squeeze(0)
                     out = inv(y)
-                    st.image([img, out], caption=["Input", f"Output ({ckpt.name})"], use_column_width=True)
+                    c1, c2 = st.columns(2)
+                    with c1: st.image(img, caption="Input", use_container_width=True)
+                    with c2: st.image(out, caption=f"Output ({ckpt.name})", use_container_width=True)
 
-                    # offer download
+                    # Offer download
                     out_bytes = io.BytesIO()
                     out.save(out_bytes, format="PNG")
                     st.download_button("Download output PNG", out_bytes.getvalue(), file_name="output.png")
@@ -221,15 +294,33 @@ with tabs[0]:
                     "--generator_A2B", str(chosen_dir / "netG_A2B.pth"),
                     "--generator_B2A", str(chosen_dir / "netG_B2A.pth"),
                 ]
-                # use GPU if available
                 if shutil.which("nvidia-smi"):
                     args.append("--cuda")
 
                 with status_box("Batch inference running…"):
-                    stream_process(args)
-                st.info(f"Images saved under: `{results_dir}`")
+                    rc = stream_process(args)
 
-# ====================== Train Tab ======================
+                if rc == 0:
+                    st.info(f"Images saved under: `{results_dir}`")
+
+                    #show 5 random correct input↔output pairs per direction
+                    previews = sample_pairs_for_preview(dataroot, results_dir, which, k=5)
+                    if not previews:
+                        st.warning("No previews could be generated (check your results dirs).")
+                    else:
+                        for title, pairs in previews:
+                            st.subheader(f"Random previews — {title}")
+                            if not pairs:
+                                st.write("_No images found for this direction._")
+                                continue
+                            for (inp, outp) in pairs:
+                                c1, c2 = st.columns(2)
+                                with c1: st.image(Image.open(inp).convert("RGB"), caption=f"Input: {Path(inp).name}", use_container_width=True)
+                                with c2: st.image(Image.open(outp).convert("RGB"), caption=f"Output: {Path(outp).name}", use_container_width=True)
+                else:
+                    st.error("Batch inference failed.")
+
+#Train
 with tabs[1]:
     st.subheader("Dataset")
     st.write("Provide a dataset path that has `trainA/ trainB/ testA/ testB/`, or upload a ZIP in that structure.")
@@ -266,7 +357,6 @@ with tabs[1]:
     start_btn = st.button("Start training")
 
     if start_btn:
-        # Ensure output dir exists; train.py expects it at save-time
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         args = [
             python_bin(), str(TRAIN_PY),
@@ -304,8 +394,89 @@ with tabs[1]:
                 else:
                     st.warning("No checkpoint files found in output/. Did training finish and save?")
 
-# ====================== Help Tab ======================
+#Help
 with tabs[2]:
-    st.markdown("""**Dataset structure expected**""")
+    st.markdown(
+        """
+### Dataset structure accepted
 
+This app supports **both** common CycleGAN layouts. Your dataset can be either one:
+
+**Layout A (folders per split and domain):**
+<dataroot>/
+train/
+A/
+B/
+test/
+A/
+B/
+
+
+**Layout B (classic CycleGAN):**
+<dataroot>/
+trainA/
+trainB/
+testA/
+testB/
+
+
+> Tip: The app automatically detects either layout for previews. `test.py` uses whatever your repo’s `datasets.py` expects.
+
+---
+
+### What “A” and “B” mean
+
+Different datasets swap meanings. Use the selector in the Inference tab to set how to interpret domains:
+
+- **A = clean, B = noisy**  ← *your dataset right now*
+- **A = noisy, B = clean**
+
+This only changes labels/captions. The actual generators are always:
+- `netG_A2B.pth` (A→B)
+- `netG_B2A.pth` (B→A)
+
+So, if A is *clean* and B is *noisy*, then **B→A = denoise**, **A→B = add noise**.
+
+---
+
+### Inference
+
+**Single image**
+1. Pick a model (from `models/<name>/netG_*.pth`).
+2. Choose direction (`A→B` or `B→A`) and upload an image.
+3. The app shows **Input vs Output** and lets you download the PNG.
+
+**Whole test set**
+1. Point to your dataset root (works with `testA/testB` or `test/A` & `test/B`).
+2. Choose direction: `A→B`, `B→A`, or `both`.
+3. After it finishes, the app displays **5 random, correct** input↔output pairs for each direction and writes images to:
+   - `<results_dir>/A2B/*.png`
+   - `<results_dir>/B2A/*.png`
+
+Pairs are matched by the same enumeration order the DataLoader uses (so the input and output are truly corresponding).
+
+---
+
+### Training
+
+Set parameters and start. Checkpoints are saved under `output/` by `train.py`. The app then archives them to `models/<run_name>/` with a `meta.json`.
+
+---
+
+### Quality checks (unpaired data)
+
+Use FID/KID to verify distribution shift:
+
+- **Baseline gap:** `A vs B`
+- **Your model:** `A→B vs B` (should be **much lower** than baseline if you’re denoising)
+- **Reverse sanity:** `B→A vs A`
+
+Examples (adjust subset size to your counts):
+```bash
+python -m torch_fidelity.fidelity --gpu 0 \
+  --input1 <dataroot>/test/B \
+  --input2 <results_dir>/A2B \
+  --fid --kid --kid-subset-size 40 --kid-subsets 100
+"""
+  )
 
