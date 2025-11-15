@@ -24,13 +24,13 @@ The digitization of ancient documents is on the rise, while the poor quality of 
 
 The pdf file is the data source from which we have extracted all the samples. You can use it as you like. 
 # Network Architecture
-<img src="https://github.com/timetooth/gean-ai/blob/main/pic/generator.jpeg" width=50% height=50%>
+<img src="https://github.com/timetooth/gean-ai/blob/main/pic/generator.jpeg" width=70% height=70%>
 
 Our improvements focus on the generator module, which works by embedding the attention module in the stacked residuals module. We hope to focus the feature map on the foreground or background of the image for the purpose of denoising but not changing the text. We have tried two different attention mechanisms: SE and CBAM. The former focuses on the channel dimension only, while the latter focuses on both the channel dimension and the spatial dimension.
 
   
 # Results
-<img src="https://github.com/timetooth/gean-ai/blob/main/pic/denoise_result.png" width=50% height=50%>
+<img src="https://github.com/timetooth/gean-ai/blob/main/pic/denoise_result.png" width=70% height=70%>
 
 ## Attention Map Visualization
 <img src="https://github.com/timetooth/gean-ai/blob/main/pic/attention_map.png" width=50% height=50%>
