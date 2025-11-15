@@ -19,8 +19,8 @@ The digitization of ancient documents is on the rise, while the poor quality of 
 |trainB | noisy images for training|
 |testA | clean images for testing|
 |testB | noisy images for testing|
-|testBgt_sim.txt | character level annotation for testB (simplified chinese)|
-|testBgt_tra.txt | character level annotation for testB (traditional chinese)|
+|testBgt_sim.txt | character level annotation for testB|
+|testBgt_tra.txt | character level annotation for testB|
 
 The pdf file is the data source from which we have extracted all the samples. You can use it as you like. 
 # Network Architecture
@@ -41,7 +41,7 @@ Our improvements focus on the generator module, which works by embedding the att
 | CycleGAN | 1.34    | 8.95   | 66.47 | 
 | CycleGAN+CBAM | 3.16    | 11.52   | 67.18 |
 | CycleGAN+SE | **1.06**    | **4.85**   | **59.79** |
-<img src="https://github.com/timetooth/gean-ai/blob/main/pic/loss.jpeg" width=100% height=100%>
+<img src="https://github.com/timetooth/gean-ai/blob/main/pic/loss.jpeg" width=120% height=120%>
 
 # Configurations
 torch 1.9.1
