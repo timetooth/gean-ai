@@ -1,3 +1,4 @@
+# streamlit run app.py
 # Streamlit UI for training + inference
 import io
 import os

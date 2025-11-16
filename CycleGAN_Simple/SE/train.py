@@ -1,3 +1,6 @@
+# For training
+# python train.py --dataroot datasets/noise2denoise --cuda --batchSize 1 --n_epochs 200 --decay_epoch 100
+
 import argparse
 import itertools
 
