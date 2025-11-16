@@ -9,7 +9,7 @@ The digitization of ancient documents is on the rise, while the poor quality of 
 # Dataset
   We chose Fangshan Shijing as our data source and cropped 1200 positive and negative 256 * 256 patches each. The ratio of training set to test set is 5:1. Here are two samples:
   
- <img src="https://github.com/timetooth/gean-ai/blob/main/pic/samples.jpg" width=50% height=50%>
+ <img src="https://github.com/timetooth/gean-ai/blob/main/pic/samples.jpg" width=70% height=70%>
 
  Download : [Noise2Denoise](https://drive.google.com/drive/folders/19_nighq97KBlwxTtan3t0Kf6qqCUsZIj?usp=sharing)
   
@@ -30,10 +30,10 @@ Our improvements focus on the generator module, which works by embedding the att
 
   
 # Results
-<img src="https://github.com/timetooth/gean-ai/blob/main/pic/denoise_result.png" width=90% height=90%>
+<img src="https://github.com/timetooth/gean-ai/blob/main/pic/denoise_result.png" width=100% height=100%>
 
 ## Attention Map Visualization
-<img src="https://github.com/timetooth/gean-ai/blob/main/pic/attention_map.png" width=50% height=50%>
+<img src="https://github.com/timetooth/gean-ai/blob/main/pic/attention_map.png" width=70% height=70%>
 
 ## FID metrics
 | Feature Dimention  | 64 | 192    | 2048  |
