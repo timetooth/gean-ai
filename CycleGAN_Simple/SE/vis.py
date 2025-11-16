@@ -10,6 +10,7 @@ import matplotlib.image as mpimg
 from models import Generator
 
 import PIL
+
 def load_model(path, model_strcuture):
     model_para = torch.load(path)
     model_strcuture.load_state_dict(model_para)
