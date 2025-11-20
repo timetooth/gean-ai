@@ -38,8 +38,6 @@ Our improvements focus on the generator module, which works by embedding the att
 ## FID metrics
 | Feature Dimention  | 64 | 192    | 2048  |
 |--------|------------|-------   |--------|
-| CycleGAN | 1.34    | 8.95   | 66.47 | 
-| CycleGAN+CBAM | 3.16    | 11.52   | 67.18 |
 | CycleGAN+SE | **1.06**    | **4.85**   | **59.79** |
 <img src="https://github.com/timetooth/gean-ai/blob/main/pic/loss.jpeg" width=100% height=100%>
 

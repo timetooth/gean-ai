@@ -62,7 +62,7 @@ class Generator(nn.Module):
         for _ in range(n_residual_blocks):
             model += [ResidualBlock(in_features)]
 
-        # Upsampling
+        # Upsampling 
         out_features = in_features//2
         for _ in range(2):
             model += [  nn.ConvTranspose2d(in_features, out_features, 3, stride=2, padding=1, output_padding=1),
