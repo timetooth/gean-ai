@@ -7,44 +7,55 @@ import torchvision
 import numpy as np
 import matplotlib.image as mpimg
 
+from pathlib import Path
+
 from models import Generator
 
 import PIL
 
-def load_model(path, model_strcuture):
-    model_para = torch.load(path)
+def load_model(path, model_strcuture, device):
+    model_para = torch.load(path, map_location=device)
     model_strcuture.load_state_dict(model_para)
+    model_strcuture.eval()
     return model_para, model_strcuture
+
+def register_conv_hooks(model, storage):
+    handles = []
+    for name, module in model.named_modules():
+        if isinstance(module, nn.Conv2d):
+            def make_hook(layer_name):
+                def hook(_, __, output):
+                    storage.append((layer_name, output.detach().cpu()))
+                return hook
+            handles.append(module.register_forward_hook(make_hook(name)))
+    return handles
 
 if __name__ == "__main__":
 
-    path = "./output/20211103/netG_B2A.pth"
-    model = Generator(3, 3)
-    model_para, model = load_model(path, model)
-    layer_name = []
-    for param_tensor in model.state_dict():
-        layer_name.append(param_tensor)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    path = "./model1/netG_B2A.pth"
+    model = Generator(3, 3).to(device)
+    model_para, model = load_model(path, model, device)
 
     print(type(model_para))
-    exp = nn.Conv2d(3,64,7)
-    exp.weight = nn.Parameter(model_para[layer_name[0]])
-    exp.bias = nn.Parameter(model_para[layer_name[1]])
 
-    input = torch.from_numpy(mpimg.imread("./datasets/noise2denoise/train/B/negative0.jpg"))
-    input = input.float()
+    np_img = mpimg.imread("./datasets/noise2denoise/train/B/negative0.jpg").copy()
+    input = torch.from_numpy(np_img).float()
     print(input.size())
     input = input.permute([2,0,1])
-    input = torch.unsqueeze(input, 0)
-    input = input.cuda()
-    input_copy = input
-    for i in range(int(len(layer_name) / 2)):
-        print("input: ", input_copy.size())
-        print(layer_name[2 * i],'\t',model_para[layer_name[2 * i]].size())
-        conv_size = list(model_para[layer_name[2 * i]].size())
-        conv_Layer = nn.Conv2d(conv_size[1], conv_size[0], conv_size[2])
-        conv_Layer.weight = nn.Parameter(model_para[layer_name[2 * i]])
-        conv_Layer.bias = nn.Parameter(model_para[layer_name[2 * i + 1]])
-        tmp = conv_Layer(input_copy)
-        input_copy = tmp
-        print("output: ", input_copy.size())
-        torchvision.utils.save_image(input_copy.permute([1,0,2,3]),"./output/output"+ str(i) +".png")
+    input = torch.unsqueeze(input, 0).to(device)
+
+    activations = []
+    hooks = register_conv_hooks(model, activations)
+    with torch.no_grad():
+        _ = model(input)
+    for h in hooks:
+        h.remove()
+
+    out_dir = Path("./output/vis")
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    for idx, (name, feat) in enumerate(activations):
+        print(f"{name}\t{feat.shape}")
+        grid = feat.permute(1,0,2,3)
+        torchvision.utils.save_image(grid, out_dir / f"{idx:02d}_{name.replace('.', '_')}.png")

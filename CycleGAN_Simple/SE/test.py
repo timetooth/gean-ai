@@ -14,7 +14,7 @@ from datasets import ImageDataset
 def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument('--batchSize', type=int, default=1)
-    ap.add_argument('--dataroot', type=str, default='datasets/horse2zebra/')
+    ap.add_argument('--dataroot', type=str, default='datasets/noise2denoise/')
     ap.add_argument('--input_nc', type=int, default=3)
     ap.add_argument('--output_nc', type=int, default=3)
     ap.add_argument('--size', type=int, default=256)
